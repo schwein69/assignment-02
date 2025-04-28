@@ -1,5 +1,6 @@
 package lib.visitor;
 
+import com.github.javaparser.ast.ImportDeclaration;
 import com.github.javaparser.ast.PackageDeclaration;
 import com.github.javaparser.ast.expr.*;
 import com.github.javaparser.ast.type.ClassOrInterfaceType;
@@ -17,50 +18,51 @@ public class ClassVisitor extends VoidVisitorAdapter<Void> {
 
   @Override
   public void visit(ClassOrInterfaceDeclaration n, Void arg) {
+    super.visit(n, arg);
     className = n.getNameAsString();
     n.getExtendedTypes().forEach(type -> dependencies.add(type.getNameAsString()));
     n.getImplementedTypes().forEach(type -> dependencies.add(type.getNameAsString()));
-    super.visit(n, arg);
   }
 
+  @Override
+  public void visit(FieldDeclaration n, Void arg) {
+    super.visit(n, arg);
+    System.out.println("Field decl: " + n.toString());
+  }
 
   @Override
-  public void visit(VariableDeclarationExpr n, Void arg) {
-    if (n.getElementType() instanceof ClassOrInterfaceType type) {
-      System.out.println("Variable: " + type.getNameAsString());
-      dependencies.add(type.getNameAsString());
-    }
+  public void visit(VariableDeclarator n, Void arg) {
     super.visit(n, arg);
+    System.out.println("Variable decl: " + n.getType().asString());
+    //dependencies.add(n.getType().asString());
   }
 
   @Override
   public void visit(ObjectCreationExpr n, Void arg) {
-    System.out.println("Class/interface: " + n.getType().getNameAsString());
-    dependencies.add(n.getType().getNameAsString());
     super.visit(n, arg);
+    System.out.println("Object creation: " + n.getType().getNameAsString());
+    //dependencies.add(n.getType().getNameAsString());
   }
 
   @Override
   public void visit(MethodCallExpr n, Void arg) {
-    System.out.println("MethodCallExpr: " + n.getNameAsString());
     //dependencies.add(n.getNameAsString());
     super.visit(n, arg);
+    // System.out.println("MethodCallExpr: " + n.getNameAsString());
   }
 
   @Override
   public void visit(MethodDeclaration n, Void arg) {
-    // Return type
-    if (n.getType() instanceof ClassOrInterfaceType type) {
-      dependencies.add(type.getNameAsString());
-    }
-
     // Parameters
     n.getParameters().forEach(param -> {
-      if (param.getType() instanceof ClassOrInterfaceType type) {
-        dependencies.add(type.getNameAsString());
-      }
+      //dependencies.add(param.getNameAsString());
+      System.out.println("Method decl + param: " + param.getType().asString());
     });
-
+    // Return type
+    if (n.getType() instanceof ClassOrInterfaceType type) {
+      //dependencies.add(type.getNameAsString());
+      System.out.println("return type: " + n.getType().asString() + " (method decl, return type)");
+    }
     super.visit(n, arg);
   }
 
@@ -72,9 +74,25 @@ public class ClassVisitor extends VoidVisitorAdapter<Void> {
 
   @Override
   public void visit(MarkerAnnotationExpr n, Void arg) {
-    dependencies.add(n.getNameAsString());
-    System.out.println("MarkerAnnotationExpr: " + n.getNameAsString());
     super.visit(n, arg);
+    //dependencies.add(n.getNameAsString());
+    System.out.println("MarkerAnnotationExpr: " + n.getNameAsString());
+  }
+
+  @Override
+  public void visit(ImportDeclaration n, Void arg) {
+    super.visit(n, arg);
+    if (!n.isAsterisk()) {
+      var typeName = n.getChildNodes().getFirst();
+      var packageName = typeName.getChildNodes().getFirst();
+      String importString = "type " + typeName + " package: " + packageName + " (import)";
+      System.out.println(importString);
+      dependencies.add(importString);
+    } else {
+      var packageName = n.getChildNodes().getFirst();
+      System.out.println("package " + packageName + " (import)");
+      dependencies.add(packageName.toString());
+    }
   }
 
   public ClassDependencies getReport() {

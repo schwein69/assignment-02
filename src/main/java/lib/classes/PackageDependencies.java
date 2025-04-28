@@ -1,12 +1,12 @@
 package lib.classes;
 
-import java.util.List;
+import java.util.Set;
 
 public class PackageDependencies {
   private final String packageName;
-  private final List<ClassDependencies> classReports;
+  private final Set<ClassDependencies> classReports;
 
-  public PackageDependencies(String packageName, List<ClassDependencies> classReports) {
+  public PackageDependencies(String packageName, Set<ClassDependencies> classReports) {
     this.packageName = packageName;
     this.classReports = classReports;
   }
@@ -15,7 +15,7 @@ public class PackageDependencies {
     return packageName;
   }
 
-  public List<ClassDependencies> getClassReports() {
+  public Set<ClassDependencies> getClassReports() {
     return classReports;
   }
 }
