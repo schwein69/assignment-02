@@ -38,7 +38,7 @@ public class TestClassDependencies {
   @Test
   public void testPackageDependencies(Vertx vertx, VertxTestContext vertxTestContext) {
     DependencyAnalyserLib analyser = new DependencyAnalyserLib(vertx);
-    Path path = Path.of(System.getProperty("user.dir"), "src/main/java/lib/classes");
+    Path path = Path.of(System.getProperty("user.dir"), "src/main/java/lib/");
     String normalizedPath = path.toString().replace("\\", "/");
 
     analyser.getPackageDependencies(Path.of(normalizedPath))

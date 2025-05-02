@@ -3,18 +3,20 @@ package lib;
 import com.github.javaparser.ParserConfiguration;
 import com.github.javaparser.StaticJavaParser;
 import com.github.javaparser.ast.CompilationUnit;
-import io.vertx.core.CompositeFuture;
 import io.vertx.core.Future;
 import io.vertx.core.Promise;
 import io.vertx.core.Vertx;
 import lib.classes.*;
 import lib.visitor.ClassVisitor;
 
+import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 public class DependencyAnalyserLib {
@@ -44,7 +46,16 @@ public class DependencyAnalyserLib {
 
   public Future<PackageDependencies> getPackageDependencies(Path packageSrcFolder) {
     Promise<PackageDependencies> promise = Promise.promise();
-    vertx.fileSystem().readDir(String.valueOf(packageSrcFolder)).compose(results -> {
+    vertx.executeBlocking(() -> {
+      try (Stream<Path> walk = Files.walk(packageSrcFolder)) {
+        return walk
+          .map(Path::toString)
+          .filter(string -> string.endsWith(".java"))
+          .collect(Collectors.toList());
+      } catch (IOException e) {
+        throw new RuntimeException(e);
+      }
+    }).compose(results -> {
       List<Future<ClassDependencies>> futures = new ArrayList<>();
       for (String filePath : results) {
         if (filePath.endsWith(".java")) {
@@ -60,6 +71,7 @@ public class DependencyAnalyserLib {
     ).onFailure(promise::fail);
     return promise.future();
   }
+
 
   public ProjectDependencies getProjectDependencies(String projectSrcFolder) {
     return null;
