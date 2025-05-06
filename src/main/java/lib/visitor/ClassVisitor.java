@@ -3,6 +3,7 @@ package lib.visitor;
 import com.github.javaparser.ast.ImportDeclaration;
 import com.github.javaparser.ast.PackageDeclaration;
 import com.github.javaparser.ast.expr.*;
+import com.github.javaparser.ast.type.ClassOrInterfaceType;
 import lib.classes.ClassDependencies;
 import com.github.javaparser.ast.body.*;
 import com.github.javaparser.ast.visitor.VoidVisitorAdapter;
@@ -16,12 +17,15 @@ public class ClassVisitor extends VoidVisitorAdapter<Void> {
   private String packageName = "UnknownPackage";
 
   @Override
+  public void visit(ClassOrInterfaceType n, Void arg) {
+    super.visit(n, arg);
+    usedTypes.add(n.getNameAsString());
+  }
+
+  @Override
   public void visit(ClassOrInterfaceDeclaration n, Void arg) {
     super.visit(n, arg);
     className = n.getNameAsString();
-    n.getExtendedTypes().forEach(type -> usedTypes.add(type.getNameAsString()));
-    n.getImplementedTypes().forEach(type -> usedTypes.add(type.getNameAsString()));
-    usedTypes.add(n.getNameAsString());
   }
 
   @Override
