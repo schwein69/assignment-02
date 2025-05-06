@@ -1,15 +1,16 @@
 package lib.classes;
 
-import java.util.List;
+import java.util.Set;
 
 public class ProjectDependencies {
-  private final List<PackageDependencies> packageReports;
+  private final Set<PackageDependencies> packageReports;
 
-  public ProjectDependencies(List<PackageDependencies> packageReports) {
+  public ProjectDependencies(Set<PackageDependencies> packageReports) {
     this.packageReports = packageReports;
   }
 
-  public List<PackageDependencies> getPackageReports() {
+  public Set<PackageDependencies> getPackageReports() {
     return packageReports;
   }
+
 }

@@ -9,13 +9,11 @@ import io.vertx.core.Vertx;
 import lib.classes.*;
 import lib.visitor.ClassVisitor;
 
+import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.ArrayList;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Set;
+import java.util.*;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -66,15 +64,58 @@ public class DependencyAnalyserLib {
     }).onSuccess(cu -> {
         Set<ClassDependencies> classDependenciesSet = new HashSet<>();
         for (Object a : cu.result().list()) classDependenciesSet.add((ClassDependencies) a);
-        promise.complete(new PackageDependencies("asd", classDependenciesSet));
+
+        // Dynamically determine the package name (use first available, or fallback)
+        String packageName = classDependenciesSet.stream()
+          .map(ClassDependencies::getPackageName)
+          .filter(name -> name != null && !name.equals("UnknownPackage"))
+          .map(name -> name.split("\\.")[0]) // Take top-level segment only
+          .findFirst()
+          .orElse("default");
+
+
+      promise.complete(new PackageDependencies(packageName, classDependenciesSet));
       }
     ).onFailure(promise::fail);
     return promise.future();
   }
 
 
-  public ProjectDependencies getProjectDependencies(String projectSrcFolder) {
-    return null;
+  public Future<ProjectDependencies> getProjectDependencies(Path projectSrcFolder) {
+    Promise<ProjectDependencies> promise = Promise.promise();
+    vertx.executeBlocking(() -> {
+      try (Stream<Path> walk = Files.walk(projectSrcFolder)) {
+        return walk
+          .filter(p -> p.toString().endsWith(".java"))
+          .collect(Collectors.groupingBy(path -> projectSrcFolder.relativize(path.getParent()).toString()));
+      } catch (IOException e) {
+        throw new RuntimeException(e);
+      }
+    }).compose(filesByPackage -> {
+      List<Future<PackageDependencies>> packageDependenciesList = new ArrayList<>();
+
+      for (Map.Entry<String, List<Path>> entry : filesByPackage.entrySet()) {
+        String packageName = entry.getKey().replace(File.separatorChar, '.');
+        List<Future<ClassDependencies>> classFuturesByPackage = entry.getValue().stream().map(this::getClassDependencies).toList();
+        Future<PackageDependencies> packageFuture = Future.all(new ArrayList<>(classFuturesByPackage))
+          .map(cf -> {
+            Set<ClassDependencies> classDeps = new HashSet<>();
+            for (int i = 0; i < cf.size(); i++) {
+              classDeps.add(cf.resultAt(i));
+            }
+            return new PackageDependencies(packageName, classDeps);
+          });
+
+        packageDependenciesList.add(packageFuture);
+      }
+      return Future.all(packageDependenciesList);
+    }).onSuccess(cu -> {
+        Set<PackageDependencies> packageDependenciesSet = new HashSet<>();
+        for (Object a : cu.result().list()) packageDependenciesSet.add((PackageDependencies) a);
+        promise.complete(new ProjectDependencies(packageDependenciesSet));
+      }
+    ).onFailure(promise::fail);
+    return promise.future();
   }
 }
 

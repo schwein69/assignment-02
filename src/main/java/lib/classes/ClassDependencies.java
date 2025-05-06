@@ -4,13 +4,13 @@ import java.util.Set;
 
 public class ClassDependencies {
   private final String className;
-  private final Set<String> dependencies;
+  private final Set<String> importedDependencies;
   private final String packageName;
 
   public ClassDependencies(String className, String packageName, Set<String> dependencies) {
     this.className = className;
     this.packageName = packageName;
-    this.dependencies = dependencies;
+    this.importedDependencies = dependencies;
   }
 
   public String getPackageName() {
@@ -21,7 +21,7 @@ public class ClassDependencies {
     return className;
   }
 
-  public Set<String> getDependencies() {
-    return dependencies;
+  public Set<String> getImportedDependencies() {
+    return importedDependencies;
   }
 }
