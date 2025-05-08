@@ -1,5 +1,6 @@
 package lib.classes;
 
+import java.util.HashSet;
 import java.util.Set;
 
 public class ClassDependencies {
@@ -10,18 +11,22 @@ public class ClassDependencies {
   public ClassDependencies(String className, String packageName, Set<String> dependencies) {
     this.className = className;
     this.packageName = packageName;
-    this.importedDependencies = dependencies;
+    this.importedDependencies = new HashSet<>(dependencies);
   }
 
   public String getPackageName() {
-    return packageName;
+    return this.packageName;
   }
 
   public String getClassName() {
-    return className;
+    return this.className;
   }
 
   public Set<String> getImportedDependencies() {
-    return importedDependencies;
+    return this.importedDependencies;
+  }
+
+  public void addDependency(String dependency) {
+    this.importedDependencies.add(dependency);
   }
 }
