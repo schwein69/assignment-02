@@ -1,13 +1,13 @@
 package reactive;
 
+import com.github.javaparser.ParserConfiguration;
 import com.github.javaparser.StaticJavaParser;
 import com.github.javaparser.ast.CompilationUnit;
 import com.github.javaparser.ast.body.ClassOrInterfaceDeclaration;
-import com.github.javaparser.ast.expr.NameExpr;
 import com.github.javaparser.ast.expr.ObjectCreationExpr;
+import com.github.javaparser.ast.nodeTypes.NodeWithName;
 import com.github.javaparser.ast.type.ClassOrInterfaceType;
 import io.reactivex.rxjava3.core.Observable;
-import io.reactivex.rxjava3.subjects.PublishSubject;
 import lib.classes.ClassDependencies;
 
 import java.nio.file.Path;
@@ -19,13 +19,16 @@ public class ReactiveAnalyzer {
   public Observable<ClassDependencies> analyzeClassDependencies(Path srcJava) {
     return Observable.create(emitter -> {
       try {
+        ParserConfiguration configuration = new ParserConfiguration();
+        configuration.setLanguageLevel(ParserConfiguration.LanguageLevel.JAVA_21);  // Java 14+ for record support
+        StaticJavaParser.setConfiguration(configuration);  // Apply configuration
+
         CompilationUnit cu = StaticJavaParser.parse(srcJava);
         // Get package name
         String packageName = cu.getPackageDeclaration()
-          .map(pd -> pd.getName().asString())
-          .orElse("");
+          .map(NodeWithName::getNameAsString)
+          .orElse(srcJava.getParent().getFileName().toString());
 
-        // Get class name (assume 1 top-level class per file)
         String className = cu.findFirst(ClassOrInterfaceDeclaration.class)
           .map(ClassOrInterfaceDeclaration::getNameAsString)
           .orElse(srcJava.getFileName().toString().replace(".java", ""));

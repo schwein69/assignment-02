@@ -38,8 +38,8 @@ public class ClassVisitor extends VoidVisitorAdapter<Void> {
 
   @Override
   public void visit(PackageDeclaration n, Void arg) {
-    packageName = n.getNameAsString();
     super.visit(n, arg);
+    packageName = n.getNameAsString();
   }
 
   @Override
