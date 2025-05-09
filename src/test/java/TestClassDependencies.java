@@ -26,7 +26,7 @@ public class TestClassDependencies {
           ClassDependencies report = result.result();
           System.out.println("Package: " + report.getPackageName());
           System.out.println("Class: " + report.getClassName());
-          System.out.println("Dependencies: " + report.getImportedDependencies());
+          System.out.println("getDependencies: " + report.getImportedDependencies());
           assertEquals("DependencyAnalyserLib", report.getClassName());
           vertxTestContext.completeNow();
         } else {
@@ -48,7 +48,7 @@ public class TestClassDependencies {
           ClassDependencies report = result.result();
           System.out.println("Package: " + report.getPackageName());
           System.out.println("Class: " + report.getClassName());
-          System.out.println("Dependencies: " + report.getImportedDependencies());
+          System.out.println("getDependencies: " + report.getImportedDependencies());
           assertEquals("ClassDependencies", report.getClassName());
           vertxTestContext.completeNow();
         } else {

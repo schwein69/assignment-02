@@ -5,13 +5,12 @@ import java.awt.*;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.io.IOException;
+import java.lang.reflect.Array;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.*;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.function.Supplier;
 import java.util.stream.Stream;
 
 import com.mxgraph.layout.hierarchical.mxHierarchicalLayout;
@@ -24,10 +23,13 @@ import org.jgrapht.graph.DefaultEdge;
 
 import com.mxgraph.swing.mxGraphComponent;
 import com.mxgraph.view.mxGraph;
+import reactive.model.Dependencies;
 
 public class DependencyAnalyzer {
+  private static final int WIDTH = 1400;
+  private static final int HEIGHT = 800;
   private static final JLabel classCountLabel = new JLabel("Classes: ");
-  private static final JLabel depCountLabel = new JLabel("Dependencies: ");
+  private static final JLabel depCountLabel = new JLabel("getDependencies: ");
   private static final Graph<String, DefaultEdge> graph = new DefaultDirectedGraph<>(DefaultEdge.class);
   private static final mxGraph mxGraph = new mxGraph();
   private static final mxGraphComponent graphComponent = new mxGraphComponent(mxGraph);
@@ -38,17 +40,19 @@ public class DependencyAnalyzer {
   private static final AtomicInteger classCounter = new AtomicInteger(0);
   private static final AtomicInteger depCounter = new AtomicInteger(0);
   private static Path srcPath = null;
+  private static final String projectRoot = "src";
+
 
   public static void main(String[] args) {
 
     JFrame frame = new JFrame("Dependency Analyzer");
-    frame.setSize(1400, 800);
+    frame.setSize(WIDTH, HEIGHT);
     frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
 
     DefaultListModel<String> listModel = new DefaultListModel<>();
     JList<String> jlist = new JList<>(listModel);
     JScrollPane scrollPane = new JScrollPane(jlist);
-    scrollPane.setPreferredSize(new Dimension(600, 800));
+    scrollPane.setPreferredSize(new Dimension((int) (WIDTH * 0.5), HEIGHT));
 
     frame.getContentPane().add(scrollPane, BorderLayout.WEST);
 
@@ -73,19 +77,17 @@ public class DependencyAnalyzer {
     bottomPanel.add(depCountLabel);
     frame.add(bottomPanel, BorderLayout.SOUTH);
 
-
     // Create a graph component from the JGraphT graph and add it to the graphPanel
     // Add a panel to visualize the graph
     graphComponent.setConnectable(false);
     graphComponent.setAutoScroll(true);
     graphComponent.getGraphControl().setPreferredSize(new Dimension(2000, 2000)); // large canvas
 
-
     JScrollPane graphScrollPane = new JScrollPane(graphComponent);
-    graphScrollPane.setPreferredSize(new Dimension(600, 800));
+    graphScrollPane.setPreferredSize(new Dimension((int) (WIDTH * 0.5), HEIGHT));
 
     JSplitPane splitPane = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, scrollPane, graphScrollPane);
-    splitPane.setDividerLocation(600); // 50% screen
+    splitPane.setDividerLocation((int) (WIDTH * 0.5));
     splitPane.setResizeWeight(0.5); // Equal resize on both sides
     frame.getContentPane().add(splitPane, BorderLayout.CENTER);
 
@@ -120,8 +122,6 @@ public class DependencyAnalyzer {
 
   private static JButton getAnalyzeButton(DefaultListModel<String> listModel, ReactiveAnalyzer depReactive) {
     JButton analyzeButton = new JButton("Analyze");
-    String projectRoot = "java";
-
     analyzeButton.addActionListener(e -> {
       if (srcPath == null) {
         throw new IllegalArgumentException();
@@ -136,23 +136,20 @@ public class DependencyAnalyzer {
         exc.printStackTrace();
         return;
       }
-      Observable<ClassDependencies> dependencyObservable = Observable.fromIterable(javaFiles)
+      Observable<Dependencies> dependencyObservable = Observable.fromIterable(javaFiles)
         .flatMap(path ->
-          depReactive.analyzeClassDependencies(path)
+          depReactive.analyzeDependencies(path)
             .subscribeOn(Schedulers.io())
         )
         .observeOn(Schedulers.trampoline());// run observable results in current thread (needed for GUI)
 
-      /*Add java root node*/
-      graph.addVertex(projectRoot);
-
       dependencyObservable.subscribe(
         result -> SwingUtilities.invokeLater(() -> {
           // Add to graph
-          String className = result.getClassName();
-          Set<String> dependencies = result.getImportedDependencies();
-          String packageName = result.getPackageName();
-          System.out.println(packageName);
+          String className = result.className();
+          Set<String> dependencies = result.getDependencies();
+          String packageName = result.packageName();
+          Path srcPathParent = result.srcPath().getParent().getParent();
 
           // Add class node
           graph.addVertex(className);
@@ -161,28 +158,36 @@ public class DependencyAnalyzer {
           expandedPackages.add(packageName);
 
           for (String dep : dependencies) {
+            graph.addVertex(dep); // Make sure the dependency class node exists
+            graph.addEdge(className, dep); // Add the class-to-class dependency edge
             depCounter.incrementAndGet();
           }
-
-        /*  String[] packageParts = packageName.split("\\.");
-          String current = projectRoot;
-
-          for (String part : packageParts) {
-            graph.addVertex(part);
-            graph.addEdge(current, part); // parent → child
-            current = part;
-          }
-          graph.addEdge(current, className);*/
 
           // Package and project nodes
           graph.addVertex(packageName);
           graph.addEdge(packageName, className);  // package → class
 
+          Path nextSrcPathParent = srcPathParent; // lib -> classes
+          System.out.println(nextSrcPathParent);
+          if (!packageName.equals(projectRoot)) {
+            // Add parent package to package.
+            while (nextSrcPathParent != null && !nextSrcPathParent.getFileName().toString().equals(projectRoot)) { //java -> lib -> classes
+              String folderName = nextSrcPathParent.getFileName().toString();
+              graph.addVertex(folderName);
+              graph.addEdge(folderName, packageName);
+              packageName = folderName;
+              nextSrcPathParent = nextSrcPathParent.getParent();
+            }
+
+          }
+          /*Add java root node*/
+          graph.addVertex(projectRoot);
           graph.addEdge(projectRoot, packageName); // project → package
+
 
           classCounter.incrementAndGet();
           classCountLabel.setText("Classes: " + classCounter);
-          depCountLabel.setText("Dependencies: " + depCounter);
+          depCountLabel.setText("getDependencies: " + depCounter);
           listModel.addElement(className + " -> " + dependencies);
         }),
         Throwable::printStackTrace,
@@ -203,21 +208,20 @@ public class DependencyAnalyzer {
       Map<String, Object> vertexMap = new HashMap<>();
       // Add only project, package, and class nodes (not dependencies)
       for (String vertex : graph.vertexSet()) {
-        if (vertex.equals("java") || isPackage(vertex) || isClass(vertex)) {
+       // if (vertex.equals(projectRoot) || isPackage(vertex) || isClass(vertex)) {
           Object cell = mxGraph.insertVertex(parent, null, vertex, 0, 0, 100, 30);
           vertexMap.put(vertex, cell);
-        }
+        //}
       }
       for (DefaultEdge edge : graph.edgeSet()) {
         String src = graph.getEdgeSource(edge);
         String tgt = graph.getEdgeTarget(edge);
 
-        // Add only edges to project → package and package → class
-        if ((isPackage(src) && isClass(tgt)) || (src.equals("java") && isPackage(tgt)) || (src.equals("java") && isClass(tgt))) {
-          if (vertexMap.containsKey(src) && vertexMap.containsKey(tgt)) {
-            mxGraph.insertEdge(parent, null, "", vertexMap.get(src), vertexMap.get(tgt));
-          }
+
+        if (vertexMap.containsKey(src) && vertexMap.containsKey(tgt)) {
+          mxGraph.insertEdge(parent, null, "", vertexMap.get(src), vertexMap.get(tgt));
         }
+
       }
       mxHierarchicalLayout layout = new mxHierarchicalLayout(mxGraph);
       layout.setOrientation(SwingConstants.NORTH);
@@ -228,10 +232,10 @@ public class DependencyAnalyzer {
     } finally {
       mxGraph.getModel().endUpdate();
     }
-    setupExpandOnClick();
+    //setupExpandOnClick();
   }
 
-  private static void setupExpandOnClick() {
+  /*private static void setupExpandOnClick() {
     graphComponent.getGraphControl().addMouseListener(new MouseAdapter() {
       @Override
       public void mouseReleased(MouseEvent e) {
@@ -242,9 +246,9 @@ public class DependencyAnalyzer {
         }
       }
     });
-  }
+  }*/
 
-  private static void expandNode(String nodeName) {
+  /*private static void expandNode(String nodeName) {
     // Check if it's not already expanded
     if (expandedNodes.contains(nodeName)) return;
     if (expandedPackages.contains(nodeName)) return;
@@ -265,7 +269,7 @@ public class DependencyAnalyzer {
         }
       }
 
-      // If node is a package: show classes
+     /* // If node is a package: show classes
       if (packageToClasses.containsKey(nodeName)) {
         for (String cls : packageToClasses.get(nodeName)) {
           if (!graph.containsVertex(cls)) {
@@ -287,19 +291,16 @@ public class DependencyAnalyzer {
     } finally {
       mxGraph.getModel().endUpdate();
     }
-  }
+  }*/
 
 
   private static boolean isPackage(String name) {
     if (srcPath == null) return false;
-    Path path = srcPath.resolve(name.replace(".", "/"));
-    return Files.isDirectory(path);
+    return Character.isLowerCase(name.charAt(0));
   }
 
   private static boolean isClass(String name) {
     if (srcPath == null) return false;
-    // If class name is "ClassA", it could be at .../package/ClassA.java
-    // So we try to find it under all known packages
     for (String pkg : packageToClasses.keySet()) {
       Path classPath = srcPath.resolve(pkg.replace(".", "/")).resolve(name + ".java");
       if (Files.exists(classPath)) {
