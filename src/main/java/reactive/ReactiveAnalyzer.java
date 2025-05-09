@@ -7,7 +7,8 @@ import com.github.javaparser.ast.body.ClassOrInterfaceDeclaration;
 import com.github.javaparser.ast.expr.ObjectCreationExpr;
 import com.github.javaparser.ast.nodeTypes.NodeWithName;
 import com.github.javaparser.ast.type.ClassOrInterfaceType;
-import io.reactivex.rxjava3.core.Observable;
+import io.reactivex.rxjava3.core.BackpressureStrategy;
+import io.reactivex.rxjava3.core.Flowable;
 import reactive.model.Dependencies;
 
 import java.nio.file.Path;
@@ -16,8 +17,8 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 public class ReactiveAnalyzer {
-  public Observable<Dependencies> analyzeDependencies(Path srcJava) {
-    return Observable.create(emitter -> {
+  public Flowable<Dependencies> analyzeDependencies(Path srcJava) {
+    return Flowable.create(emitter -> {
       try {
         ParserConfiguration configuration = new ParserConfiguration();
         configuration.setLanguageLevel(ParserConfiguration.LanguageLevel.JAVA_21);  // Java 14+ for record support
@@ -45,6 +46,6 @@ public class ReactiveAnalyzer {
       } catch (Exception e) {
         emitter.onError(e);
       }
-    });
+    }, BackpressureStrategy.BUFFER);
   }
 }
