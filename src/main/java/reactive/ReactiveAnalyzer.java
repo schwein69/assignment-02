@@ -25,7 +25,6 @@ public class ReactiveAnalyzer {
         StaticJavaParser.setConfiguration(configuration);  // Apply configuration
 
         CompilationUnit cu = StaticJavaParser.parse(srcJava);
-        // Get package name
         String packageName = cu.getPackageDeclaration()
           .map(NodeWithName::getNameAsString).map(pkg -> pkg.substring(pkg.lastIndexOf('.') + 1))
           .orElse(srcJava.getParent().getFileName().toString());

@@ -2,11 +2,9 @@ package reactive;
 
 import javax.swing.*;
 import java.awt.*;
-import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.*;
-import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Stream;
 
@@ -22,8 +20,8 @@ import com.mxgraph.view.mxGraph;
 import reactive.model.Dependencies;
 
 public class DependencyAnalyzer {
-  private static final int WIDTH = 1400;
-  private static final int HEIGHT = 800;
+  private static final int WIDTH = 1600;
+  private static final int HEIGHT = 1000;
   private static final JLabel classCountLabel = new JLabel("Classes: ");
   private static final JLabel depCountLabel = new JLabel("getDependencies: ");
   private static final Graph<String, DefaultEdge> graph = new DefaultDirectedGraph<>(DefaultEdge.class);
@@ -37,7 +35,6 @@ public class DependencyAnalyzer {
 
 
   public static void main(String[] args) {
-
     JFrame frame = new JFrame("Dependency Analyzer");
     frame.setSize(WIDTH, HEIGHT);
     frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
@@ -112,6 +109,17 @@ public class DependencyAnalyzer {
     }
   }
 
+  private static Flowable<Dependencies> analyzePath(ReactiveAnalyzer depReactive, Path root) {
+    return Flowable.using(
+      () -> Files.walk(root),
+      files -> Flowable.fromStream(files)
+        .filter(p -> p.toString().endsWith(".java"))
+        .flatMap(path -> depReactive.analyzeDependencies(path)
+          .subscribeOn(Schedulers.io())),
+      Stream::close
+    ).observeOn(Schedulers.trampoline());
+  }
+
   private static JButton getAnalyzeButton(DefaultListModel<String> listModel, ReactiveAnalyzer depReactive) {
     JButton analyzeButton = new JButton("Analyze");
     analyzeButton.addActionListener(e -> {
@@ -119,21 +127,8 @@ public class DependencyAnalyzer {
         throw new IllegalArgumentException();
       }
       reset(listModel);
-      List<Path> javaFiles;
-      try (Stream<Path> files = Files.walk(srcPath)) {
-        javaFiles = files
-          .filter(p -> p.toString().endsWith(".java"))
-          .toList();
-      } catch (IOException exc) {
-        exc.printStackTrace();
-        return;
-      }
-      Flowable<Dependencies> dependencyObservable = Flowable.fromIterable(javaFiles)
-        .flatMap(path ->
-          depReactive.analyzeDependencies(path)
-            .subscribeOn(Schedulers.io())
-        )
-        .observeOn(Schedulers.trampoline());// For gui
+
+      Flowable<Dependencies> dependencyObservable = analyzePath(depReactive, srcPath);
 
       dependencyObservable.subscribe(
         result -> SwingUtilities.invokeLater(() -> {
