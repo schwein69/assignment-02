@@ -129,7 +129,8 @@ public class DependencyView {
   }
 
   public void clearTree() {
-    this.jTree.removeAll();
+    root.removeAllChildren();
+    ((DefaultTreeModel) jTree.getModel()).reload();
   }
 
   public JLabel getClassCountLabel() {

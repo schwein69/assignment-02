@@ -69,7 +69,6 @@ public class DependencyController {
 
         }
 
-
         view.updateTreeModel();
         view.expandAllNodes();
 
