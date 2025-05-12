@@ -54,6 +54,8 @@ public class DependencyModel {
     this.graph.removeAllEdges(new HashSet<>(graph.edgeSet()));
     this.vertexMap.clear();
     this.addedEdges.clear();
+    this.classCounter = 0;
+    this.dependenciesCounter = 0;
   }
 
   public int getClassCounter() {

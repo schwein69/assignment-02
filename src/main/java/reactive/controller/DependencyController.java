@@ -12,6 +12,8 @@ import reactive.view.DependencyView;
 import javax.swing.*;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.LinkedList;
+import java.util.List;
 import java.util.Set;
 import java.util.stream.Stream;
 
@@ -50,14 +52,26 @@ public class DependencyController {
 
         model.addVertex(packageName);
         model.addEdge(packageName, className);
+        List<String> listPackages = new LinkedList<>();
+        listPackages.add(packageName);
+        if (srcParent != null && !packageName.equals(model.getProjectRoot())) {
+          while (srcParent != null && !packageName.equals(model.getProjectRoot())) {
+            String folder = srcParent.getFileName().toString();
+            model.addVertex(folder);
+            model.addEdge(folder, packageName);
+            listPackages.addFirst(folder);
+            packageName = folder;
+            srcParent = srcParent.getParent();
+          }
+          view.addPackageToPackage(listPackages, className, dependencies);
+        } else {
+          view.addNodeToJTree(result.packageName(), className, dependencies);
 
-        while (srcParent != null && !packageName.equals(model.getProjectRoot())) {
-          String folder = srcParent.getFileName().toString();
-          model.addVertex(folder);
-          model.addEdge(folder, packageName);
-          packageName = folder;
-          srcParent = srcParent.getParent();
         }
+
+
+        view.updateTreeModel();
+        view.expandAllNodes();
 
         model.addVertex(model.getProjectRoot());
         model.addEdge(model.getProjectRoot(), packageName);
@@ -65,7 +79,6 @@ public class DependencyController {
         model.incrementClassCounter();
         view.getClassCountLabel().setText("Classes: " + model.getClassCounter());
         view.getDepCountLabel().setText("Dependencies: " + model.getDependenciesCounter());
-        view.getListModel().addElement(className + " -> " + dependencies);
 
         updateGraphView(model, view);
       }), Throwable::printStackTrace);
@@ -73,7 +86,7 @@ public class DependencyController {
   }
 
   private void reset(DependencyModel model, DependencyView view) {
-    view.clearListModel();
+    view.clearTree();
     model.reset();
     view.getMxGraph().getModel().beginUpdate();
     try {
@@ -91,7 +104,7 @@ public class DependencyController {
         .flatMap(path -> depReactive.analyzeDependencies(path)
           .subscribeOn(Schedulers.io())),
       Stream::close
-    ).onBackpressureBuffer(10).observeOn(Schedulers.computation());
+    ).observeOn(Schedulers.computation());
   }
 
   private void updateGraphView(DependencyModel model, DependencyView view) {

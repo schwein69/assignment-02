@@ -2,28 +2,35 @@ package reactive.view;
 
 import com.mxgraph.swing.mxGraphComponent;
 import com.mxgraph.view.mxGraph;
+
 import javax.swing.*;
+import javax.swing.tree.DefaultMutableTreeNode;
+import javax.swing.tree.DefaultTreeModel;
 import java.awt.*;
+import java.util.*;
+import java.util.List;
+
 
 public class DependencyView {
   private static final int WIDTH = 1600;
   private static final int HEIGHT = 1000;
   private final JFrame frame = new JFrame("Dependency Analyzer");
-  private final DefaultListModel<String> listModel = new DefaultListModel<>();
   private final JLabel classCountLabel = new JLabel("Classes: ");
   private final JLabel depCountLabel = new JLabel("Dependencies: ");
   private final mxGraph mxGraph = new mxGraph();
   private final mxGraphComponent graphComponent = new mxGraphComponent(mxGraph);
-  public final JList<String> resultList = new JList<>(listModel);
   public final JLabel selectedPathLabel = new JLabel("Selected: ");
   public final JButton analyzeButton = new JButton("Analyze");
   public final JButton selectFolderButton = new JButton("Select Folder");
+  private final DefaultMutableTreeNode root = new DefaultMutableTreeNode("Root");
+  private final DefaultTreeModel treeModel = new DefaultTreeModel(root);
+  private final JTree jTree = new JTree(treeModel);
 
   public DependencyView() {
     frame.setSize(WIDTH, HEIGHT);
     frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
 
-    JScrollPane listScrollPane = new JScrollPane(resultList);
+    JScrollPane listScrollPane = new JScrollPane(jTree);
     JScrollPane graphScrollPane = new JScrollPane(graphComponent);
 
     JSplitPane splitPane = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, listScrollPane, graphScrollPane);
@@ -49,8 +56,80 @@ public class DependencyView {
     frame.setVisible(true);
   }
 
-  public void clearListModel() {
-    this.listModel.clear();
+
+  public void addNodeToJTree(String nodeParentPackage, String nodeChildClass, Set<String> dependencies) {
+    DefaultMutableTreeNode parentPackage = findOrCreateChild(root, nodeParentPackage);
+
+    // Check if class already exists under this package
+    DefaultMutableTreeNode existingClassNode = findChild(parentPackage, nodeChildClass);
+    if (existingClassNode == null) {
+      DefaultMutableTreeNode childClass = new DefaultMutableTreeNode(nodeChildClass);
+
+      // Add dependency nodes
+      for (String dep : dependencies) {
+        childClass.add(new DefaultMutableTreeNode(dep));
+      }
+
+      parentPackage.add(childClass);
+    }
+  }
+
+  public void addPackageToPackage(List<String> packages, String nodeChildClass, Set<String> dependencies) {
+    DefaultMutableTreeNode current = root;
+
+    // Traverse or build package path
+    for (String pkg : packages) {
+      current = findOrCreateChild(current, pkg);
+    }
+
+    // Add class node with dependencies
+    DefaultMutableTreeNode classNode = findChild(current, nodeChildClass);
+    if (classNode == null) {
+      classNode = new DefaultMutableTreeNode(nodeChildClass);
+      for (String dep : dependencies) {
+        classNode.add(new DefaultMutableTreeNode(dep));
+      }
+      current.add(classNode);
+    }
+  }
+
+
+  private DefaultMutableTreeNode findOrCreateChild(DefaultMutableTreeNode parent, String childName) {
+    Enumeration<?> children = parent.children();
+    while (children.hasMoreElements()) {
+      Object node = children.nextElement();
+      if (node instanceof DefaultMutableTreeNode child) {
+        if (childName.equals(child.getUserObject())) {
+          return child;
+        }
+      }
+    }
+
+    // Not found — create new
+    DefaultMutableTreeNode newChild = new DefaultMutableTreeNode(childName);
+    parent.add(newChild);
+    return newChild;
+  }
+
+  private DefaultMutableTreeNode findChild(DefaultMutableTreeNode parent, String childName) {
+    Enumeration<?> children = parent.children();
+    while (children.hasMoreElements()) {
+      Object node = children.nextElement();
+      if (node instanceof DefaultMutableTreeNode child) {
+        if (childName.equals(child.getUserObject())) {
+          return child;
+        }
+      }
+    }
+    return null;
+  }
+
+  public void updateTreeModel() {
+    this.treeModel.reload();
+  }
+
+  public void clearTree() {
+    this.jTree.removeAll();
   }
 
   public JLabel getClassCountLabel() {
@@ -69,12 +148,17 @@ public class DependencyView {
     return graphComponent;
   }
 
-  public DefaultListModel<String> getListModel() {
-    return listModel;
-  }
-
-  public com.mxgraph.view.mxGraph getMxGraph() {
+  public mxGraph getMxGraph() {
     return mxGraph;
   }
+
+  public void expandAllNodes() {
+    int row = 0;
+    while (row < jTree.getRowCount()) {
+      jTree.expandRow(row);
+      row++;
+    }
+  }
+
 
 }
